@@ -1035,7 +1035,7 @@ interface player {
         respawn: async func ();
 
         /// Opens a GUI for the player.
-        open-gui: async func (gui-ref: gui);
+        open-gui: async func (gui-ref: gui) -> u32;
         /// Closes the player's currently open container or GUI screen.
         close-inventory: async func ();
         /// Returns whether the player currently has an external container or GUI screen open.

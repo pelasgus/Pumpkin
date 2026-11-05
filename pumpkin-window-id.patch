@@ -1,0 +1,261 @@
+--- a/crates/pumpkin-core/src/plugin/api/events/player/inventory_interact.rs
++++ b/crates/pumpkin-core/src/plugin/api/events/player/inventory_interact.rs
+@@ -16,6 +16,9 @@
+ 
+     /// The window type of the inventory being interacted with.
+     pub window_type: Option<WindowType>,
++
++    /// Protocol screen handler ID, matching the GUI open result.
++    pub window_id: u32,
+ 
+     /// The type of click performed.
+     pub click_type: ClickType,
+@@ -58,6 +61,7 @@
+     pub fn new(
+         player: &Arc<Player>,
+         window_type: Option<WindowType>,
++        window_id: u32,
+         click_type: ClickType,
+         slot: i16,
+         raw_slot: i16,
+@@ -68,6 +72,7 @@
+         Self {
+             player: Arc::clone(player),
+             window_type,
++            window_id,
+             click_type,
+             slot,
+             raw_slot,
+--- a/crates/pumpkin-core/src/plugin/api/events/player/inventory_close.rs
++++ b/crates/pumpkin-core/src/plugin/api/events/player/inventory_close.rs
+@@ -14,6 +14,9 @@
+ 
+     /// The window type of the inventory that was closed.
+     pub window_type: Option<WindowType>,
++
++    /// Protocol screen handler ID, matching the GUI open result.
++    pub window_id: u32,
+ }
+ 
+ impl InventoryCloseEvent {
+@@ -27,10 +30,11 @@
+     /// # Returns
+     ///
+     /// A new `InventoryCloseEvent` instance with the specified data.
+-    pub fn new(player: &Arc<Player>, window_type: Option<WindowType>) -> Self {
++    pub fn new(player: &Arc<Player>, window_type: Option<WindowType>, window_id: u32) -> Self {
+         Self {
+             player: Arc::clone(player),
+             window_type,
++            window_id,
+         }
+     }
+ }
+--- a/crates/pumpkin-core/src/entity/player.rs
++++ b/crates/pumpkin-core/src/entity/player.rs
+@@ -6237,13 +6237,14 @@
+             .unwrap_or_else(std::sync::PoisonError::into_inner)
+             .clone();
+ 
+-        let window_type = {
++        let (window_type, window_id) = {
+             let mut handler = current_screen_handler
+                 .lock()
+                 .unwrap_or_else(std::sync::PoisonError::into_inner);
+             let wt = handler.window_type();
++            let window_id = u32::from(handler.sync_id());
+             handler.on_closed(self);
+-            wt
++            (wt, window_id)
+         };
+ 
+         let world = self.living_entity.entity.world.load();
+@@ -6255,6 +6256,7 @@
+                 crate::plugin::api::events::player::inventory_close::InventoryCloseEvent::new(
+                     &player_arc,
+                     window_type,
++                    window_id,
+                 );
+             server.plugin_manager.fire_blocking(&server, &mut event);
+         }
+@@ -6655,6 +6657,7 @@
+                 InventoryClickEvent::new(
+                     self,
+                     window_type,
++                    packet.sync_id.0 as u32,
+                     click_type,
+                     slot,
+                     raw_slot,
+@@ -6714,6 +6717,7 @@
+             InventoryClickEvent::new(
+                 self,
+                 window_type,
++                packet.sync_id.0 as u32,
+                 click_type,
+                 slot,
+                 raw_slot,
+--- a/crates/pumpkin-plugin-wit/v0.1/event.wit
++++ b/crates/pumpkin-plugin-wit/v0.1/event.wit
+@@ -212,6 +212,7 @@
+ 
+     record inventory-click-event-data {
+         player: player,
++        window-id: u32,
+         window-type: option<screen>,
+         click-type: click-type,
+         slot: s16,
+@@ -224,6 +225,7 @@
+ 
+     record inventory-close-event-data {
+         player: player,
++        window-id: u32,
+         window-type: option<screen>
+     }
+ 
+--- a/crates/pumpkin-plugin-wit/v0.1/player.wit
++++ b/crates/pumpkin-plugin-wit/v0.1/player.wit
+@@ -992,7 +992,7 @@
+         respawn: func ();
+ 
+         /// Opens a GUI for the player.
+-        open-gui: func (gui-ref: gui);
++        open-gui: func (gui-ref: gui) -> u32;
+ 
+         /// Bans the player with the specified options.
+         ban: func (options: ban-player-options);
+--- a/crates/pumpkin-plugin-wit/v0.2/event.wit
++++ b/crates/pumpkin-plugin-wit/v0.2/event.wit
+@@ -212,6 +212,7 @@
+ 
+     record inventory-click-event-data {
+         player: player,
++        window-id: u32,
+         window-type: option<screen>,
+         click-type: click-type,
+         slot: s16,
+@@ -224,6 +225,7 @@
+ 
+     record inventory-close-event-data {
+         player: player,
++        window-id: u32,
+         window-type: option<screen>
+     }
+ 
+--- a/crates/pumpkin-plugin-wit/v0.2/player.wit
++++ b/crates/pumpkin-plugin-wit/v0.2/player.wit
+@@ -1035,7 +1035,7 @@
+         respawn: async func ();
+ 
+         /// Opens a GUI for the player.
+-        open-gui: async func (gui-ref: gui);
++        open-gui: async func (gui-ref: gui) -> u32;
+         /// Closes the player's currently open container or GUI screen.
+         close-inventory: async func ();
+         /// Returns whether the player currently has an external container or GUI screen open.
+--- a/crates/pumpkin-wasm-host-v0_1/src/events/player.rs
++++ b/crates/pumpkin-wasm-host-v0_1/src/events/player.rs
+@@ -155,6 +155,7 @@
+ 
+         Event::InventoryCloseEvent(InventoryCloseEventData {
+             player,
++            window_id: self.window_id,
+             window_type: self.window_type.map(to_wit_screen),
+         })
+     }
+@@ -164,6 +165,7 @@
+             Event::InventoryCloseEvent(data) => Self {
+                 player: consume_player(state, &data.player),
+                 window_type: data.window_type.map(from_wit_screen),
++                window_id: data.window_id,
+             },
+             _ => panic!("unexpected event type"),
+         }
+@@ -178,6 +180,7 @@
+ 
+         Event::InventoryClickEvent(InventoryClickEventData {
+             player,
++            window_id: self.window_id,
+             window_type: self.window_type.map(to_wit_screen),
+             click_type: to_wasm_click_type(self.click_type),
+             slot: self.slot,
+@@ -202,6 +205,7 @@
+             Event::InventoryClickEvent(data) => Self {
+                 player: consume_player(state, &data.player),
+                 window_type: data.window_type.map(from_wit_screen),
++                window_id: data.window_id,
+                 click_type: from_wasm_click_type(data.click_type),
+                 slot: data.slot,
+                 raw_slot: data.raw_slot,
+--- a/crates/pumpkin-wasm-host-v0_1/src/player.rs
++++ b/crates/pumpkin-wasm-host-v0_1/src/player.rs
+@@ -3079,7 +3079,7 @@
+         mut host: Access<'_, PluginHostState, Self>,
+         player: Resource<Player>,
+         gui: Resource<pumpkin::plugin::gui::Gui>,
+-    ) -> wasmtime::Result<()> {
++    ) -> wasmtime::Result<u32> {
+         let (player, gui, plugin) = {
+             let state = host.get();
+             let gui = state.take(gui)?;
+@@ -3116,6 +3116,7 @@
+                     allow_put_items,
+                 )));
+                 player.open_handled_screen_direct(screen_handler, &title);
++                u32::from(sync_id)
+             })
+             .await
+     }
+--- a/crates/pumpkin-wasm-host-v0_2/src/events/player.rs
++++ b/crates/pumpkin-wasm-host-v0_2/src/events/player.rs
+@@ -155,6 +155,7 @@
+ 
+         Event::InventoryCloseEvent(InventoryCloseEventData {
+             player,
++            window_id: self.window_id,
+             window_type: self.window_type.map(to_wit_screen),
+         })
+     }
+@@ -164,6 +165,7 @@
+             Event::InventoryCloseEvent(data) => Self {
+                 player: consume_player(state, &data.player),
+                 window_type: data.window_type.map(from_wit_screen),
++                window_id: data.window_id,
+             },
+             _ => panic!("unexpected event type"),
+         }
+@@ -178,6 +180,7 @@
+ 
+         Event::InventoryClickEvent(InventoryClickEventData {
+             player,
++            window_id: self.window_id,
+             window_type: self.window_type.map(to_wit_screen),
+             click_type: to_wasm_click_type(self.click_type),
+             slot: self.slot,
+@@ -202,6 +205,7 @@
+             Event::InventoryClickEvent(data) => Self {
+                 player: consume_player(state, &data.player),
+                 window_type: data.window_type.map(from_wit_screen),
++                window_id: data.window_id,
+                 click_type: from_wasm_click_type(data.click_type),
+                 slot: data.slot,
+                 raw_slot: data.raw_slot,
+--- a/crates/pumpkin-wasm-host-v0_2/src/player.rs
++++ b/crates/pumpkin-wasm-host-v0_2/src/player.rs
+@@ -3252,7 +3252,7 @@
+         accessor: &Accessor<PluginHostState, Self>,
+         player: Resource<Player>,
+         gui: Resource<pumpkin::plugin::gui::Gui>,
+-    ) -> wasmtime::Result<()> {
++    ) -> wasmtime::Result<u32> {
+         let (player, gui) = accessor.with(|mut host| -> wasmtime::Result<_> {
+             let state = host.get();
+             let gui = state.take(gui)?;
+@@ -3285,6 +3285,7 @@
+                 allow_put_items,
+             )));
+             player.open_handled_screen_direct(screen_handler, &title);
++                u32::from(sync_id)
+         })
+         .await
+     }
+

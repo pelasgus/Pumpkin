@@ -155,6 +155,7 @@ impl ToFromWasmEvent for InventoryCloseEvent {
 
         Event::InventoryCloseEvent(InventoryCloseEventData {
             player,
+            window_id: self.window_id,
             window_type: self.window_type.map(to_wit_screen),
         })
     }
@@ -164,6 +165,7 @@ impl ToFromWasmEvent for InventoryCloseEvent {
             Event::InventoryCloseEvent(data) => Self {
                 player: consume_player(state, &data.player),
                 window_type: data.window_type.map(from_wit_screen),
+                window_id: data.window_id,
             },
             _ => panic!("unexpected event type"),
         }
@@ -178,6 +180,7 @@ impl ToFromWasmEvent for InventoryClickEvent {
 
         Event::InventoryClickEvent(InventoryClickEventData {
             player,
+            window_id: self.window_id,
             window_type: self.window_type.map(to_wit_screen),
             click_type: to_wasm_click_type(self.click_type),
             slot: self.slot,
@@ -202,6 +205,7 @@ impl ToFromWasmEvent for InventoryClickEvent {
             Event::InventoryClickEvent(data) => Self {
                 player: consume_player(state, &data.player),
                 window_type: data.window_type.map(from_wit_screen),
+                window_id: data.window_id,
                 click_type: from_wasm_click_type(data.click_type),
                 slot: data.slot,
                 raw_slot: data.raw_slot,

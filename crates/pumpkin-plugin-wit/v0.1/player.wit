@@ -992,7 +992,7 @@ interface player {
         respawn: func ();
 
         /// Opens a GUI for the player.
-        open-gui: func (gui-ref: gui);
+        open-gui: func (gui-ref: gui) -> u32;
 
         /// Bans the player with the specified options.
         ban: func (options: ban-player-options);

@@ -3079,7 +3079,7 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
         mut host: Access<'_, PluginHostState, Self>,
         player: Resource<Player>,
         gui: Resource<pumpkin::plugin::gui::Gui>,
-    ) -> wasmtime::Result<()> {
+    ) -> wasmtime::Result<u32> {
         let (player, gui, plugin) = {
             let state = host.get();
             let gui = state.take(gui)?;
@@ -3116,6 +3116,7 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
                     allow_put_items,
                 )));
                 player.open_handled_screen_direct(screen_handler, &title);
+                u32::from(sync_id)
             })
             .await
     }

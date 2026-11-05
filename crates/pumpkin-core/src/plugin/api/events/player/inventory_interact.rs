@@ -17,6 +17,9 @@ pub struct InventoryClickEvent {
     /// The window type of the inventory being interacted with.
     pub window_type: Option<WindowType>,
 
+    /// Protocol screen handler ID, matching the GUI open result.
+    pub window_id: u32,
+
     /// The type of click performed.
     pub click_type: ClickType,
 
@@ -58,6 +61,7 @@ impl InventoryClickEvent {
     pub fn new(
         player: &Arc<Player>,
         window_type: Option<WindowType>,
+        window_id: u32,
         click_type: ClickType,
         slot: i16,
         raw_slot: i16,
@@ -68,6 +72,7 @@ impl InventoryClickEvent {
         Self {
             player: Arc::clone(player),
             window_type,
+            window_id,
             click_type,
             slot,
             raw_slot,

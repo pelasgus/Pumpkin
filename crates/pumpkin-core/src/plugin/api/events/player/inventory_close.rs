@@ -14,6 +14,9 @@ pub struct InventoryCloseEvent {
 
     /// The window type of the inventory that was closed.
     pub window_type: Option<WindowType>,
+
+    /// Protocol screen handler ID, matching the GUI open result.
+    pub window_id: u32,
 }
 
 impl InventoryCloseEvent {
@@ -27,10 +30,11 @@ impl InventoryCloseEvent {
     /// # Returns
     ///
     /// A new `InventoryCloseEvent` instance with the specified data.
-    pub fn new(player: &Arc<Player>, window_type: Option<WindowType>) -> Self {
+    pub fn new(player: &Arc<Player>, window_type: Option<WindowType>, window_id: u32) -> Self {
         Self {
             player: Arc::clone(player),
             window_type,
+            window_id,
         }
     }
 }

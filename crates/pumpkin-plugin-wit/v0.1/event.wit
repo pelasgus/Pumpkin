@@ -212,6 +212,7 @@ interface event {
 
     record inventory-click-event-data {
         player: player,
+        window-id: u32,
         window-type: option<screen>,
         click-type: click-type,
         slot: s16,
@@ -224,6 +225,7 @@ interface event {
 
     record inventory-close-event-data {
         player: player,
+        window-id: u32,
         window-type: option<screen>
     }
 

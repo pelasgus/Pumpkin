@@ -6237,13 +6237,14 @@ impl Player {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
 
-        let window_type = {
+        let (window_type, window_id) = {
             let mut handler = current_screen_handler
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let wt = handler.window_type();
+            let window_id = u32::from(handler.sync_id());
             handler.on_closed(self);
-            wt
+            (wt, window_id)
         };
 
         let world = self.living_entity.entity.world.load();
@@ -6255,6 +6256,7 @@ impl Player {
                 crate::plugin::api::events::player::inventory_close::InventoryCloseEvent::new(
                     &player_arc,
                     window_type,
+                    window_id,
                 );
             server.plugin_manager.fire_blocking(&server, &mut event);
         }
@@ -6655,6 +6657,7 @@ impl Player {
                 InventoryClickEvent::new(
                     self,
                     window_type,
+                    packet.sync_id.0 as u32,
                     click_type,
                     slot,
                     raw_slot,
@@ -6714,6 +6717,7 @@ impl Player {
             InventoryClickEvent::new(
                 self,
                 window_type,
+                packet.sync_id.0 as u32,
                 click_type,
                 slot,
                 raw_slot,
