@@ -32,6 +32,22 @@ use pumpkin_wasm_host_common::state::PluginHostState;
 impl pumpkin::plugin::server::Host for PluginHostState {}
 
 impl pumpkin::plugin::server::HostServer for PluginHostState {
+    fn allocate_map(
+        &mut self,
+        _rep: Resource<Server>,
+        world: Resource<pumpkin::plugin::world::World>,
+        center_x: i32,
+        center_z: i32,
+    ) -> wasmtime::Result<Result<i32, String>> {
+        // Resolve the world before consuming an ID. This also rejects stale resources.
+        let dimension = self.get(&world)?.dimension.clone();
+        let server = self.server.as_ref().ok_or_else(||
+            wasmtime::Error::msg("Server not available"))?;
+        let id = server.next_map_id();
+        server.map_manager.create_map(id, dimension, center_x, center_z, 0);
+        Ok(Ok(id))
+    }
+
     fn get_sys_info(&mut self, _res: Resource<Server>) -> wasmtime::Result<SysInfo> {
         let has_perm = |p: &str| self.permissions.iter().any(|perm| perm == p);
 
