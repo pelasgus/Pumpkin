@@ -160,7 +160,14 @@ interface server {
         /// Allocate a map using the same server counter and map manager as vanilla maps.
         /// The caller must attach the returned ID as the minecraft:map_id item component.
         /// This creates the server-side map entry, but does not give the player an item.
-        allocate-map: func(world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
+        allocate-map: func(map-world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
+
+        /// Allocate a map registered to the calling plugin (identity is host-derived).
+        /// Ownership is in-memory and fails closed on restart until persistence is added.
+        allocate-owned-map: func(map-world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
+
+        /// Check map ownership against the calling plugin and its world.
+        verify-map-owner: func(map-world: %world, map-id: s32) -> bool;
 
         /// Returns the current difficulty level of the server.
         get-difficulty: func() -> difficulty;

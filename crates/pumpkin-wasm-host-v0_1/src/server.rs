@@ -48,6 +48,43 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
         Ok(Ok(id))
     }
 
+    fn allocate_owned_map(
+        &mut self,
+        _rep: Resource<Server>,
+        world: Resource<pumpkin::plugin::world::World>,
+        center_x: i32,
+        center_z: i32,
+    ) -> wasmtime::Result<Result<i32, String>> {
+        let dimension = self.get(&world)?.dimension.clone();
+        let Some(plugin_name) = self.name.as_deref() else {
+            return Ok(Err("Plugin identity unavailable".to_string()));
+        };
+        let server = self.server.as_ref().ok_or_else(||
+            wasmtime::Error::msg("Server not available"))?;
+        let id = server.next_map_id();
+        server.map_manager.create_map(id, dimension.clone(), center_x, center_z, 0);
+        if !server.map_manager.register_owner(id, plugin_name.to_string(), dimension) {
+            return Ok(Err("Could not register map ownership".to_string()));
+        }
+        Ok(Ok(id))
+    }
+
+    fn verify_map_owner(
+        &mut self,
+        _rep: Resource<Server>,
+        world: Resource<pumpkin::plugin::world::World>,
+        map_id: i32,
+    ) -> wasmtime::Result<bool> {
+        if map_id < 0 { return Ok(false); }
+        let dimension = self.get(&world)?.dimension.clone();
+        let Some(plugin_name) = self.name.as_deref() else {
+            return Ok(false);
+        };
+        let server = self.server.as_ref().ok_or_else(||
+            wasmtime::Error::msg("Server not available"))?;
+        Ok(server.map_manager.verify_owner(map_id, plugin_name, &dimension))
+    }
+
     fn get_sys_info(&mut self, _res: Resource<Server>) -> wasmtime::Result<SysInfo> {
         let has_perm = |p: &str| self.permissions.iter().any(|perm| perm == p);
 

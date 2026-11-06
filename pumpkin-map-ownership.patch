@@ -1,0 +1,113 @@
+--- a/crates/pumpkin-plugin-wit/v0.1/server.wit
++++ b/crates/pumpkin-plugin-wit/v0.1/server.wit
+@@ -162,6 +162,13 @@
+         /// This creates the server-side map entry, but does not give the player an item.
+         allocate-map: func(map-world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
+ 
++        /// Allocate a map registered to the calling plugin (identity is host-derived).
++        /// Ownership is in-memory and fails closed on restart until persistence is added.
++        allocate-owned-map: func(map-world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
++
++        /// Check map ownership against the calling plugin and its world.
++        verify-map-owner: func(map-world: %world, map-id: s32) -> bool;
++
+         /// Returns the current difficulty level of the server.
+         get-difficulty: func() -> difficulty;
+ 
+--- a/crates/pumpkin-wasm-host-v0_1/src/server.rs
++++ b/crates/pumpkin-wasm-host-v0_1/src/server.rs
+@@ -46,6 +46,43 @@
+         let id = server.next_map_id();
+         server.map_manager.create_map(id, dimension, center_x, center_z, 0);
+         Ok(Ok(id))
++    }
++
++    fn allocate_owned_map(
++        &mut self,
++        _rep: Resource<Server>,
++        world: Resource<pumpkin::plugin::world::World>,
++        center_x: i32,
++        center_z: i32,
++    ) -> wasmtime::Result<Result<i32, String>> {
++        let dimension = self.get(&world)?.dimension.clone();
++        let Some(plugin_name) = self.name.as_deref() else {
++            return Ok(Err("Plugin identity unavailable".to_string()));
++        };
++        let server = self.server.as_ref().ok_or_else(||
++            wasmtime::Error::msg("Server not available"))?;
++        let id = server.next_map_id();
++        server.map_manager.create_map(id, dimension.clone(), center_x, center_z, 0);
++        if !server.map_manager.register_owner(id, plugin_name.to_string(), dimension) {
++            return Ok(Err("Could not register map ownership".to_string()));
++        }
++        Ok(Ok(id))
++    }
++
++    fn verify_map_owner(
++        &mut self,
++        _rep: Resource<Server>,
++        world: Resource<pumpkin::plugin::world::World>,
++        map_id: i32,
++    ) -> wasmtime::Result<bool> {
++        if map_id < 0 { return Ok(false); }
++        let dimension = self.get(&world)?.dimension.clone();
++        let Some(plugin_name) = self.name.as_deref() else {
++            return Ok(false);
++        };
++        let server = self.server.as_ref().ok_or_else(||
++            wasmtime::Error::msg("Server not available"))?;
++        Ok(server.map_manager.verify_owner(map_id, plugin_name, &dimension))
+     }
+ 
+     fn get_sys_info(&mut self, _res: Resource<Server>) -> wasmtime::Result<SysInfo> {
+--- a/crates/pumpkin-core/src/world/map.rs
++++ b/crates/pumpkin-core/src/world/map.rs
+@@ -4,8 +4,16 @@
+ use pumpkin_util::math::{position::BlockPos, vector2::Vector2};
+ use std::sync::{Arc, Mutex};
+ 
++/// The server derives `plugin` from the authenticated WASM host state.
++pub struct OwnedMap {
++    pub plugin: String,
++    pub dimension: Dimension,
++}
++
+ pub struct MapManager {
+     pub maps: DashMap<i32, Arc<Mutex<MapData>>>,
++    /// Server-controlled plugin ownership; never inferred from item NBT.
++    pub owned_maps: DashMap<i32, OwnedMap>,
+ }
+ 
+ impl Default for MapManager {
+@@ -19,7 +27,30 @@
+     pub fn new() -> Self {
+         Self {
+             maps: DashMap::new(),
++            owned_maps: DashMap::new(),
+         }
++    }
++
++    /// Register only after the vanilla map has been created.
++    pub fn register_owner(&self, id: i32, plugin: String, dimension: Dimension) -> bool {
++        if self.get_map(id).is_none() {
++            return false;
++        }
++        match self.owned_maps.entry(id) {
++            dashmap::mapref::entry::Entry::Vacant(entry) => {
++                entry.insert(OwnedMap { plugin, dimension });
++                true
++            }
++            dashmap::mapref::entry::Entry::Occupied(_) => false,
++        }
++    }
++
++    #[must_use]
++    pub fn verify_owner(&self, id: i32, plugin: &str, dimension: &Dimension) -> bool {
++        self.get_map(id).is_some()
++            && self.owned_maps.get(&id).is_some_and(|entry| {
++                entry.plugin == plugin && entry.dimension.id == dimension.id
++            })
+     }
+ 
+     #[must_use]
+

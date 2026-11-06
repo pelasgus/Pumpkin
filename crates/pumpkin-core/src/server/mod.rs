@@ -306,6 +306,9 @@ impl Server {
                 .map_err(|e| WorldInfoError::IoError(std::io::Error::other(e)))?,
         );
 
+        let (map_manager, restored_next_map_id) = MapManager::load_owned_maps(&world_path)
+            .map_err(WorldInfoError::IoError)?;
+
         let server = Self {
             basic_config,
             advanced_config,
@@ -317,7 +320,7 @@ impl Server {
             recipe_manager: Arc::new(recipe::RecipeManager::new()),
             datapack_manager: Arc::new(crate::data::datapack::DatapackManager::new()),
             enchantment_manager: Arc::new(enchantment::EnchantmentManager::new()),
-            map_id: level_info.load().map_id.into(),
+            map_id: level_info.load().map_id.max(restored_next_map_id).into(),
             worlds: ArcSwap::from_pointee(vec![]),
             dimensions,
             command_dispatcher,
@@ -328,7 +331,7 @@ impl Server {
             listing,
             branding: CachedBranding::new(),
             bossbars: std::sync::Mutex::new(CustomBossbars::new()),
-            map_manager: MapManager::new(),
+            map_manager,
             defaultgamemode,
             player_data_storage,
             command_storage: std::sync::Mutex::new(std::collections::HashMap::new()),

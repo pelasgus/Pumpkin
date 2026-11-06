@@ -1,0 +1,11 @@
+--- a/crates/pumpkin-plugin-wit/v0.1/server.wit
++++ b/crates/pumpkin-plugin-wit/v0.1/server.wit
+@@ -162,7 +162,7 @@
+         /// Allocate a map using the same server counter and map manager as vanilla maps.
+         /// The caller must attach the returned ID as the minecraft:map_id item component.
+         /// This creates the server-side map entry, but does not give the player an item.
+-        allocate-map: func(world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
++        allocate-map: func(map-world: %world, center-x: s32, center-z: s32) -> result<s32, string>;
+ 
+         /// Returns the current difficulty level of the server.
+         get-difficulty: func() -> difficulty;
