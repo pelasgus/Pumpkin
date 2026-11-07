@@ -1,0 +1,16 @@
+diff --git a/crates/pumpkin-core/src/entity/player.rs b/crates/pumpkin-core/src/entity/player.rs
+--- a/crates/pumpkin-core/src/entity/player.rs
++++ b/crates/pumpkin-core/src/entity/player.rs
+@@ -5805,6 +5805,12 @@
+                 && let Some(map_id_comp) = stack.get_data_component::<MapIdImpl>()
+             {
+                 let map_id = map_id_comp.id;
++                // Plugin-owned maps are updated by their plugin.
++                // Skip vanilla map rendering and packet transmission.
++                if server.map_manager.owned_maps.contains_key(&map_id) {
++                    continue;
++                }
++
+                 if let Some(map_data_arc) = server.map_manager.get_map(map_id)
+                     && let Ok(mut map_data) = map_data_arc.try_lock()
+                 {

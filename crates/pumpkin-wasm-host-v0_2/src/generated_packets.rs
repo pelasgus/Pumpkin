@@ -1092,6 +1092,42 @@ pub fn serialize_java_packet(
                 .unwrap();
             Some(buf.into())
         }
+        ClientboundPacket::CMapItemData(data) => {
+            let icons: Option<Vec<pumpkin_protocol::java::client::play::MapIcon>> =
+                data.icons.as_ref().map(|icons| {
+                    icons.iter().map(|icon| pumpkin_protocol::java::client::play::MapIcon {
+                        icon_type: VarInt(icon.icon_type),
+                        x: icon.x,
+                        z: icon.z,
+                        direction: icon.direction,
+                        display_name: icon.display_name.as_ref().map(|name| {
+                            pumpkin_util::text::TextComponent::text(name.clone())
+                        }),
+                    }).collect()
+                });
+            let patch = data.data.as_ref().map(|patch| {
+                pumpkin_protocol::java::client::play::MapPatch {
+                    columns: patch.columns,
+                    rows: patch.rows,
+                    x: patch.x,
+                    z: patch.z,
+                    data: &patch.data,
+                }
+            });
+            let packet = pumpkin_protocol::java::client::play::CMapItemData {
+                map_id: VarInt(data.map_id),
+                scale: data.scale,
+                tracking_position: data.tracking_position,
+                locked: data.locked,
+                icons: icons.as_deref(),
+                data: patch,
+            };
+            let mut buf = Vec::new();
+            pumpkin_core::net::java::JavaClient::write_packet_for_version(
+                &packet, version, &mut buf,
+            ).unwrap();
+            Some(buf.into())
+        }
         _ => None,
     }
 }
